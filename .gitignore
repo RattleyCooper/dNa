@@ -1,0 +1,7 @@
+*.exe
+*.f07
+testIn
+testOut
+dNa/dna
+tests
+*.d.na
