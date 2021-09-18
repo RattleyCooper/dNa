@@ -5,3 +5,5 @@ testOut
 dNa/dna
 tests
 *.d.na
+test.nim
+test
