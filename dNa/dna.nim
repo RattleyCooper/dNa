@@ -41,13 +41,12 @@ proc writeDna*(fPaths: seq[string], outputFilePath: string = "archive.d.na") =
   )
   dataStream.write(header)
 
-  # Create output file and write data stream's 
-  # buffer to that file.
+  # Create output file
   var outputFile: File
   if not outputFile.open(outputFilePath, fmWrite):
     raise newException(OSError, "Could not open output file! " & outputFilePath)
 
-  # Write files to data stream.
+  # Write files to output file data stream.
   for filePath in fPaths:
     var fPath = filePath.replace("\\", "/")
     var f: File
@@ -127,19 +126,20 @@ proc readDna*(filePath: string, outDir: string = "") =
     var dNa: DnaFile
     dataStream.read(dNa)
 
+    # Create output directory and append / to end of dir
     var oPath = outDir
     if not dirExists(oPath): createDir(oPath)
     if not(oPath.endsWith("/")): oPath = oPath & "/"
 
-    let outpathParts = dna.name.split("/")
-    let dirs = outpathParts[0..^2]
+    block createDirectories:
+      let outpathParts = dna.name.split("/")
+      let dirs = outpathParts[0..^2]
+      var lastDir: string
+      for d in dirs:
+        let nPath = oPath[0..^2] & lastDir & "/" & d  
+        if not dirExists(nPath): createDir(nPath)
 
-    var lastDir: string
-    for i, d in dirs:
-      let nPath = oPath[0..^2] & lastDir & "/" & d  
-      if not dirExists(nPath): createDir(nPath)
-
-      lastDir = lastDir & "/" & d
+        lastDir = lastDir & "/" & d
 
     # Create output file and write bytes from
     # data stream.
@@ -155,19 +155,3 @@ proc readDna*(filePath: string, outDir: string = "") =
   
   if c < header.totalFiles.int:
     echo "Warning: Expected " & $header.totalFiles & " but only extracted " & $c
-
-
-if isMainModule:
-  # Get list of files
-  let files = block:
-    var res: seq[string]
-    for kind, path in walkDir("testIn"):
-      if kind != pcFile:
-        continue
-      res.add(path)
-    res
-  # files.writeDna("archive.d.na")
-  #  ^ same as v
-  # writeDna("testIn", "archive.d.na")
-  # Read from dNa archive and uncompress files.
-  readDna("archive.d.na", "testOut")
