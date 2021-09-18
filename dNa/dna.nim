@@ -6,9 +6,8 @@
 #
 
 
-import nettystream
+import lib/nettystream
 import strutils, os
-import times
 import zippy
 
 
@@ -28,9 +27,10 @@ type
     data*: seq[uint8]
 
 
-proc writeDna*(fPaths: seq[string], outputFilePath: string = "collection.d.na") =
+proc writeDna*(fPaths: seq[string], outputFilePath: string = "archive.d.na") =
   ## Write files to the dNa archive format.
   #
+
   var dataStream = NettyStream()
 
   # Write file format header to data stream.
@@ -45,15 +45,15 @@ proc writeDna*(fPaths: seq[string], outputFilePath: string = "collection.d.na") 
   # buffer to that file.
   var outputFile: File
   if not outputFile.open(outputFilePath, fmWrite):
-    raise newException(Exception, "Could not open output file! " & outputFilePath)
+    raise newException(OSError, "Could not open output file! " & outputFilePath)
 
   # Write files to data stream.
   for filePath in fPaths:
     var fPath = filePath.replace("\\", "/")
     var f: File
     if not f.open(fPath, fmRead):
-      raise newException(Exception, "Could not open " & fPath)
-
+      raise newException(OSError, "Could not open " & fPath)
+    
     # Create a sequence of bytes and read the
     # the file into that sequence.
     let fSize = f.getFileSize()
@@ -62,13 +62,13 @@ proc writeDna*(fPaths: seq[string], outputFilePath: string = "collection.d.na") 
     f.close()
     
     let fParts = fPath.split("/")
-    let fName = fParts[^1]
-
+    let nfPath = fParts[1..^1].join("/")
+    
     var compCont = fContents.compress(BestCompression, dfDeflate)
     # Create header for file contents and 
     # write those contents to the data stream.
     var dNa = DnaFile(
-      name: fName,
+      name: nfPath,
       data: compCont
     )
     dataStream.write(dNa)
@@ -80,12 +80,13 @@ proc writeDna*(fPaths: seq[string], outputFilePath: string = "collection.d.na") 
 proc readDna*(filePath: string, outDir: string = "") =
   ## Read a dNa file and extract the contents to the outDir.
   #
+
   var fPath = filepath.replace("\\", "/")
   # Open file and read contents
   var f: File
   var fContents: string
   if not f.open(fPath, fmRead):
-    raise newException(Exception, "Could not open " & fPath)
+    raise newException(OSError, "Could not open " & fPath)
   fContents = f.readAll()
   f.close()
 
@@ -102,10 +103,10 @@ proc readDna*(filePath: string, outDir: string = "") =
   # Check file header and error out if archive is unkown 
   if header.version > Version:
     let versionErrMsg = "The archive was created with a newer version of the dNa archiver.  Update to v" & $Version & " and try again."
-    raise newException(Exception, versionErrMsg)
+    raise newException(ValueError, versionErrMsg)
   if header.information != Information:
     let infoErrMsg = "Unknown archive type of " & header.information
-    raise newException(Exception, infoErrMsg)
+    raise newException(ValueError, infoErrMsg)
   
   # Extract files from the stream.
   var c = 0
@@ -113,16 +114,28 @@ proc readDna*(filePath: string, outDir: string = "") =
     # Read the dNa file header 
     var dNa: DnaFile
     dataStream.read(dNa)
+
     var oPath = outDir
-    if not(oPath.endsWith("/")):
-      oPath = oPath & "/"
+    if not dirExists(oPath): createDir(oPath)
+    if not(oPath.endsWith("/")): oPath = oPath & "/"
+
+    let outpathParts = dna.name.split("/")
+    let dirs = outpathParts[0..^2]
+
+    var lastDir: string
+    for i, d in dirs:
+      let nPath = oPath[0..^2] & lastDir & "/" & d  
+      if not dirExists(nPath): createDir(nPath)
+
+      lastDir = lastDir & "/" & d
 
     # Create output file and write bytes from
     # data stream.
     var outputFile: File
     if not outputFile.open(oPath & dNa.name, fmWrite):
       let errMsg = "Could not open file " & oPath & dNa.name
-      raise newException(Exception, errMsg)
+      raise newException(OSError, errMsg)
+
     let inflatedData = dNa.data.uncompress(dfDeflate)
     discard outputFile.writeBytes(inflatedData, 0, inflatedData.len)
     outputFile.close()
@@ -141,13 +154,8 @@ if isMainModule:
         continue
       res.add(path)
     res
-
-  # write dNa archive
-  let start = now()
-  files.writeDna("collection.d.na")
-  echo start - now()
-
+  # files.writeDna("archive.d.na")
+  #  ^ same as v
+  # writeDna("testIn", "archive.d.na")
   # Read from dNa archive and uncompress files.
-  let readStart = now() 
-  readDna("collection.d.na", "testOut")
-  echo readStart - now()
+  readDna("archive.d.na", "testOut")
