@@ -77,6 +77,18 @@ proc writeDna*(fPaths: seq[string], outputFilePath: string = "archive.d.na") =
   outputFile.close()
 
 
+proc writeDna*(folderPath: string, outputFilepath: string = "archive.d.na") =
+  ## Write files in given folderPath to dNa archive.
+  #
+
+  let files = block:
+    var res: seq[string]
+    for path in walkDirRec(folderPath):
+      res.add(path)
+    res  
+  writeDna(files, outputFilepath)
+
+
 proc readDna*(filePath: string, outDir: string = "") =
   ## Read a dNa file and extract the contents to the outDir.
   #
